@@ -181,7 +181,7 @@ curl -si -X POST http://localhost:8000/upload \
   -F "file=@/tmp/sensitive.txt"
 ```
 
-**Observed Terminal Output (Screenshot: T-2):**
+**Observed Terminal Output:**
 
 ```
 $ grep API_TOKEN docker-compose.yml
@@ -197,6 +197,8 @@ content-type: application/json
 {"file_id":"0d1b32e2-aab6-4a03-b942-18bbeefc4d17","filename":"sensitive.txt",
  "size_bytes":34,"sha256":"8b25d791c6d75233101807f58265d428508e0a7791f1ad25a30ee9d7335f4696"}
 ```
+
+![Figure 2. API token exposed in plaintext config](screenshots/T-2_API_token_plaintext.png)
 
 **Analysis:** The credential `supersecret-mock-token` is readable in one `grep` command from the project directory. Any actor with read access to the repository has immediate full API access. The HTTP 200 response confirms full authentication bypass using the exposed token. Additionally, the audit log records no caller identity beyond a generic actor - if two users share this token, their actions cannot be distinguished in incident review.
 

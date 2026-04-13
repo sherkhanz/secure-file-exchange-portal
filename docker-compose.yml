@@ -1,0 +1,31 @@
+version: "3.9"
+
+services:
+
+  api:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: sfep_api
+    restart: unless-stopped
+    environment:
+      DB_PATH: /data/db/portal.db
+      STORAGE_PATH: /data/files
+      API_TOKEN: supersecret-mock-token    
+      DEFAULT_EXPIRY_MINUTES: "60"
+      MAX_UPLOAD_MB: "20"
+    volumes:
+      - sfep_db:/data/db       
+      - sfep_files:/data/files  
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  sfep_db:
+  sfep_files:

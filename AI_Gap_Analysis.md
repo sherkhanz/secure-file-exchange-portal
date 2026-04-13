@@ -1,0 +1,7 @@
+# AI Gap Analysis: Secure File Exchange Portal
+
+The first thing I noticed working with AI on this project is that it generates code that looks right but doesn't always run. For example, it created a non-root user in the Dockerfile, which is correct in theory, but forgot `--chown` on the `COPY` instruction. Container crashed immediately with a `PermissionError`. One line fix: `COPY --chown=portaluser:portaluser main.py .`
+
+The other thing was scope creep. AI kept pushing toward JWT and OAuth2 without me asking. For this assignment I needed intentionally vulnerable code, a static token, UUID tokens with no rate limiting, no auth on the download endpoint. That's the whole point, that's the Threat Model material. Had to re-explain every session why I wanted bad code, because AI defaults to best practices regardless of what you actually need.
+
+Same problem with testing. It wrote pytest with httpx async clients and fixtures. Technically fine, but I needed raw HTTP output for screenshots in the security testing doc. A simple `curl -si http://localhost:8000/download/$TOKEN` shows the status, headers and body in one shot, which is exactly what goes into a report as proof. Rewrote everything to curl commands myself, took less time than arguing with the AI about it.

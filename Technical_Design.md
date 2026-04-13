@@ -1,8 +1,8 @@
 # Technical Design Document: Secure File Exchange Portal
 
-**Status:** Initial Architecture
-**Version:** 0.1.0
-**Repository:** https://github.com/sherkhanz/secure-file-exchange-portal
+**Status:** Initial Architecture  
+**Version:** 0.1.0  
+**Repository:** https://github.com/sherkhanz/secure-file-exchange-portal  
 
 ---
 

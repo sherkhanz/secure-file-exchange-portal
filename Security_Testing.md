@@ -322,7 +322,7 @@ sudo wc -l $LOG_FILE
 docker logs sfep_api 2>&1 | wc -l
 ```
 
-**Observed Terminal Output (Screenshot: T-4 — Audit Log Stream):**
+**Observed Terminal Output:**
 
 ```
 2026-04-13T05:51:46Z  AUDIT  event=failed_download | token=5b2b0c20-... | reason=token_not_found
@@ -338,6 +338,8 @@ docker logs sfep_api 2>&1 | wc -l
 2026-04-13T06:11:48Z  AUDIT  event=link_generated | token=bedc35f8-... | file_id=b2012153-...
 2026-04-13T06:12:00Z  AUDIT  event=successful_download | token=bedc35f8-... | file_id=b2012153-...
 ```
+
+![Figure 4. Audit log stream - no actor attribution](screenshots/T-4_audit_log_no_attribution.png)
 
 **Three compounding weaknesses confirmed:**
 

@@ -179,7 +179,7 @@ volumes:
 
 | # | Threat | STRIDE | Impact | Likelihood | Blast Radius | Priority | Mitigation |
 |---|--------|--------|--------|------------|--------------|----------|------------|
-| T-1 | Unauthenticated file download / IDOR | Elevation of Privilege | Critical | High | Any uploaded file retrievable by anyone with network access and a guessed token | P0 | 1. Add `Depends(require_auth)` to `/download/{token}`<br>2. Implement `max_downloads` counter in links table<br>3. Add `slowapi` rate limiting at 5 req/min per IP |
+| 1 | Unauthenticated file download / IDOR | Elevation of Privilege | Critical | High | Any uploaded file retrievable by anyone with network access and a guessed token | P0 | 1. Add `Depends(require_auth)` to `/download/{token}`<br>2. Implement `max_downloads` counter in links table<br>3. Add `slowapi` rate limiting at 5 req/min per IP |
 | 2 | Hardcoded static API token | Spoofing | High | High | Full write access to upload, link creation, and revocation for any party who reads the compose file | **P0** | 1. Move `API_TOKEN` to Docker Secret<br>2. Issue per-caller hashed API keys<br> 3. Propagate `user_id` to all audit events |
 | 3 | Unrestricted file upload | Tampering | High | Medium | Portal becomes a malware staging and distribution platform; RCE possible under future proxy misconfiguration | **P1** | 1. Add MIME-type allowlist<br>2. Use `python-magic` for byte-level validation<br> 3. Integrate ClamAV sidecar |
 | 4 | Non-repudiable stdout-only audit log | Repudiation | Medium | High | Complete audit trail erasable by root in one command; no actor attribution survives incident review | **P1** | 1. Persist events to append-only SQLite `audit_log` table<br> 2. Forward logs to external SIEM<br> 3. Add HMAC chain per entry |

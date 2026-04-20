@@ -15,7 +15,5 @@ API-first service for temporary file sharing. A user uploads a file, creates a t
 | [`app/main.py`](app/main.py) | FastAPI application |
 | [`app/Dockerfile`](app/Dockerfile) | Container definition |
 | [`docker-compose.yml`](docker-compose.yml) | Service configuration |
-| [`Technical_Design.md`](Technical_Design.md) | System architecture |
 | [`Threat_Model.md`](Threat_Model.md) | STRIDE threat analysis |
 | [`Security_Testing.md`](Security_Testing.md) | Test cases |
-| [`AI_Gap_Analysis.md`](AI_Gap_Analysis.md) | AI development reflections |

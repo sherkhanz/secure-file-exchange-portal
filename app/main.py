@@ -13,9 +13,9 @@ from pydantic import BaseModel
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-DB_PATH      = os.environ.get("DB_PATH",                  "/data/db/portal.db")
-STORAGE_PATH = os.environ.get("STORAGE_PATH",             "/data/files")
-API_TOKEN    = os.environ.get("API_TOKEN",                 "supersecret-mock-token")
+DB_PATH      = os.environ.get("DB_PATH",                   "/data/db/portal.db")
+STORAGE_PATH = os.environ.get("STORAGE_PATH",              "/data/files")
+API_TOKEN    = os.environ.get("API_TOKEN",                  "supersecret-mock-token")
 EXPIRY_MINS  = int(os.environ.get("DEFAULT_EXPIRY_MINUTES", "60"))
 MAX_MB       = int(os.environ.get("MAX_UPLOAD_MB",          "20"))
 
@@ -34,8 +34,20 @@ log = logging.getLogger("portal")
 
 
 def audit(event: str, **kwargs):
+    """Emit audit event to stdout AND persist to audit_log table."""
     parts = " | ".join(f"{k}={v}" for k, v in kwargs.items())
     log.info(f"event={event} | {parts}")
+
+    # Persist to SQLite so Grafana can query it
+    detail = str(kwargs)
+    try:
+        with get_db() as conn:
+            conn.execute(
+                "INSERT INTO audit_log (event, detail, ts) VALUES (?, ?, ?)",
+                (event, detail, datetime.utcnow().isoformat()),
+            )
+    except Exception as e:
+        log.error(f"Failed to persist audit event: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -67,6 +79,13 @@ def init_db():
                 created_at   TEXT NOT NULL,
                 FOREIGN KEY (file_id) REFERENCES files(id)
             );
+
+            CREATE TABLE IF NOT EXISTS audit_log (
+                id      INTEGER PRIMARY KEY AUTOINCREMENT,
+                event   TEXT NOT NULL,
+                detail  TEXT,
+                ts      TEXT NOT NULL
+            );
         """)
 
 
@@ -87,6 +106,8 @@ app = FastAPI(
 # ---------------------------------------------------------------------------
 def require_auth(x_api_token: Optional[str] = Header(default=None)):
     if x_api_token != API_TOKEN:
+        # Persist unauthorized attempt to audit_log
+        audit("unauthorized_request", reason="invalid_or_missing_token")
         raise HTTPException(status_code=401, detail="Missing or invalid API token.")
     return x_api_token
 
@@ -105,18 +126,14 @@ class LinkRequest(BaseModel):
 
 @app.get("/health")
 def health():
-    """§3.7 — Liveness check. No auth required."""
     return {"status": "ok", "version": "0.1.0"}
 
-
-# ── Upload ─────────────────────────────────────────────────────────────────
 
 @app.post("/upload")
 async def upload_file(
     file: UploadFile = File(...),
     _auth: str = Depends(require_auth),
 ):
-
     contents = await file.read()
 
     if len(contents) > MAX_MB * 1024 * 1024:
@@ -152,14 +169,11 @@ async def upload_file(
     }
 
 
-# ── Create link ────────────────────────────────────────────────────────────
-
 @app.post("/links")
 def create_link(
     body: LinkRequest,
     _auth: str = Depends(require_auth),
 ):
-
     with get_db() as conn:
         row = conn.execute(
             "SELECT id FROM files WHERE id = ?", (body.file_id,)
@@ -189,32 +203,25 @@ def create_link(
     }
 
 
-# ── Download ───────────────────────────────────────────────────────────────
-
 @app.get("/download/{token}")
 def download_file(token: str):
-
     with get_db() as conn:
         link = conn.execute(
             "SELECT * FROM links WHERE token = ?", (token,)
         ).fetchone()
 
-    # ── Invalid token
     if not link:
         audit("failed_download", token=token, reason="token_not_found")
         raise HTTPException(status_code=404, detail="Token not found.")
 
-    # ── Revoked
     if link["revoked"]:
         audit("revoked_link_access", token=token, file_id=link["file_id"])
         raise HTTPException(status_code=410, detail="This link has been revoked.")
 
-    # ── Expired
     if datetime.utcnow() > datetime.fromisoformat(link["expires_at"]):
         audit("expired_link_access", token=token, file_id=link["file_id"])
         raise HTTPException(status_code=410, detail="This link has expired.")
 
-    # ── Fetch file record
     with get_db() as conn:
         file_row = conn.execute(
             "SELECT * FROM files WHERE id = ?", (link["file_id"],)
@@ -233,14 +240,11 @@ def download_file(token: str):
     return FileResponse(path, filename=file_row["filename"])
 
 
-# ── Revoke ─────────────────────────────────────────────────────────────────
-
 @app.post("/revoke/{token}")
 def revoke_link(
     token: str,
     _auth: str = Depends(require_auth),
 ):
-
     with get_db() as conn:
         link = conn.execute(
             "SELECT * FROM links WHERE token = ?", (token,)

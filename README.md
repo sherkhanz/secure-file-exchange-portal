@@ -18,3 +18,4 @@ API-first service for temporary file sharing. A user uploads a file, creates a t
 | [`Threat_Model.md`](Threat_Model.md) | STRIDE threat analysis |
 | [`Security_Testing.md`](Security_Testing.md) | Test cases |
 | [`OE_Dashboard.md`](OE_Dashboard.md) | Grafana OE Dashboard |
+| [`Operational_Runbook.md`](Operational_Runbook.md) | Operational Runbook |

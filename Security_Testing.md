@@ -36,7 +36,7 @@ echo "TOKEN:   $TOKEN"
 
 ---
 
-## 3. Test Cases
+## 3. Security Test Cases
 
 ---
 
@@ -406,7 +406,36 @@ HTTP/1.1 200 OK
 
 ---
 
-## 4. Test Results Summary
+## 4. Automated Test Suite
+
+The manual security test cases in Section 3 are partially automated via `automate_tests.sh`. This update also introduces functional tests, covering core API workflows such as health checks, file uploads, and link creation. The script uses `curl` for all HTTP interactions and prints `[PASS]` or `[FAIL]` for each test case.
+
+### Coverage
+
+| Test | Type | Script Test |
+|------|------|-------------|
+| Health check - GET /health returns 200 | Functional | Functional Test 1 |
+| Upload file - POST /upload returns file_id | Functional | Functional Test 2 |
+| Create download link - POST /links returns token | Functional | Functional Test 3 |
+| Unauthenticated download returns 200 | Security | Security Test 1 |
+| Upload without token returns 401 | Security | Security Test 2 |
+| PHP webshell upload accepted | Security | Security Test 3 |
+| Revoked token returns 410 | Security | Security Test 4 |
+
+### Run the Suite
+
+```bash
+chmod +x automate_tests.sh
+./automate_tests.sh
+```
+
+### Terminal Output
+
+![Automated Tests](screenshots/Automated_Tests.png)
+
+---
+
+## 5. Security Test Results Summary
 
 | Test ID | Vulnerability | STRIDE | NIST CSF | Severity | Result |
 | :--- | :--- | :--- | :--- | :--- | :--- |

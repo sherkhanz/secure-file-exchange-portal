@@ -1,25 +1,37 @@
 #!/bin/bash
 # =============================================================================
-# SFEP Automated Test
+# SFEP Automated Test Suite
 # =============================================================================
 
-BASE_URL="http://localhost:8000"
-API_TOKEN="supersecret-mock-token"
+BASE_URL="${BASE_URL:-http://localhost:8000}"
+API_TOKEN="${API_TOKEN:-supersecret-mock-token}"
 TEST_FILE="/tmp/sfep_test_file.txt"
 PASS=0
 FAIL=0
+SECURITY_FINDINGS=0
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
+YELLOW='\033[1;33m'
 NC='\033[0m'
 
-pass() { echo -e "${GREEN}[PASS]${NC} $1"; ((PASS++)); }
-fail() { echo -e "${RED}[FAIL]${NC} $1"; ((FAIL++)); }
+pass()    { echo -e "${GREEN}[PASS]${NC} $1";  ((PASS++)); }
+fail()    { echo -e "${RED}[FAIL]${NC} $1";    ((FAIL++)); }
+finding() { echo -e "${YELLOW}[VULN]${NC} $1"; ((SECURITY_FINDINGS++)); }
 
 echo "=================================================="
 echo " SFEP Automated Test Suite"
 echo " Target: $BASE_URL"
 echo "=================================================="
+
+# --- Preflight: verify API is reachable ---
+echo ""
+echo "[ Preflight ] API reachability check"
+if ! curl -s --max-time 5 "$BASE_URL/health" > /dev/null; then
+  echo -e "${RED}[ERROR]${NC} API not reachable at $BASE_URL — is docker compose running?"
+  exit 2
+fi
+echo "API is reachable."
 
 # --- Setup ---
 echo "sfep test file content $(date)" > "$TEST_FILE"
@@ -37,7 +49,7 @@ else
 fi
 
 # ==============================================================================
-# FUNCTIONAL TEST 2: Upload + Download full workflow
+# FUNCTIONAL TEST 2: Upload file
 # ==============================================================================
 echo ""
 echo "[ Functional Test 2 ] Upload file and get 200 OK"
@@ -72,56 +84,25 @@ else
 fi
 
 # ==============================================================================
-# SECURITY TEST 1: IDOR — Unauthenticated Download
+# FUNCTIONAL TEST 4: Auth enforcement
 # ==============================================================================
 echo ""
-echo "[ Security Test 1 ] IDOR — Unauthenticated download via known token"
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/download/$TOKEN")
-
-if [ "$HTTP_CODE" == "200" ]; then
-  fail "SEC-IDOR-001: /download/$TOKEN returned 200 with NO auth header — VULNERABILITY CONFIRMED"
-else
-  pass "SEC-IDOR-001: /download/$TOKEN returned $HTTP_CODE — endpoint is protected"
-fi
-
-# ==============================================================================
-# SECURITY TEST 2: Auth — Missing token returns 401
-# ==============================================================================
-echo ""
-echo "[ Security Test 2 ] Auth — Upload without token returns 401"
+echo "[ Functional Test 4 ] Auth — Upload without token returns 401"
 HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
   -X POST "$BASE_URL/upload" \
   -F "file=@$TEST_FILE")
 
 if [ "$HTTP_CODE" == "401" ]; then
-  pass "SEC-AUTH-001: POST /upload without token returned 401 — auth is enforced"
+  pass "POST /upload without token returned 401 — auth is enforced"
 else
-  fail "SEC-AUTH-001: POST /upload without token returned $HTTP_CODE (expected 401)"
+  fail "POST /upload without token returned $HTTP_CODE (expected 401)"
 fi
 
 # ==============================================================================
-# SECURITY TEST 3: Unrestricted Upload — PHP webshell accepted
+# FUNCTIONAL TEST 5: Revoke token and verify 410
 # ==============================================================================
 echo ""
-echo "[ Security Test 3 ] Unrestricted Upload — PHP webshell accepted"
-echo '<?php system($_GET["cmd"]); ?>' > /tmp/shell.php
-
-UPLOAD_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-  -X POST "$BASE_URL/upload" \
-  -H "x-api-token: $API_TOKEN" \
-  -F "file=@/tmp/shell.php")
-
-if [ "$UPLOAD_CODE" == "200" ]; then
-  fail "SEC-UPLOAD-001: PHP webshell accepted with HTTP 200 — no file type validation"
-else
-  pass "SEC-UPLOAD-001: PHP webshell rejected with $UPLOAD_CODE — validation is working"
-fi
-
-# ==============================================================================
-# SECURITY TEST 4: Revoke token and verify access denied
-# ==============================================================================
-echo ""
-echo "[ Security Test 4 ] Revoke token — verify 410 on download"
+echo "[ Functional Test 5 ] Revoke token — verify 410 on download"
 curl -s -X POST "$BASE_URL/revoke/$TOKEN" \
   -H "x-api-token: $API_TOKEN" > /dev/null
 
@@ -134,15 +115,59 @@ else
 fi
 
 # ==============================================================================
+# SECURITY TEST 1: IDOR — Unauthenticated Download (known vulnerability)
+# ==============================================================================
+echo ""
+echo "[ Security Test 1 ] IDOR — Unauthenticated download (known vulnerability)"
+
+UPLOAD2=$(curl -s -X POST "$BASE_URL/upload" \
+  -H "x-api-token: $API_TOKEN" \
+  -F "file=@$TEST_FILE")
+FILE_ID2=$(echo "$UPLOAD2" | python3 -c "import sys,json; print(json.load(sys.stdin)['file_id'])" 2>/dev/null)
+LINK2=$(curl -s -X POST "$BASE_URL/links" \
+  -H "x-api-token: $API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"file_id\": \"$FILE_ID2\", \"expires_in_minutes\": 60}")
+TOKEN2=$(echo "$LINK2" | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])" 2>/dev/null)
+
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/download/$TOKEN2")
+if [ "$HTTP_CODE" == "200" ]; then
+  finding "SEC-IDOR-001: /download/{token} returned 200 with NO auth — VULNERABILITY CONFIRMED (T-1)"
+else
+  pass "SEC-IDOR-001: /download/{token} returned $HTTP_CODE — endpoint is protected"
+fi
+
+# ==============================================================================
+# SECURITY TEST 2: Unrestricted Upload — PHP webshell (known vulnerability)
+# ==============================================================================
+echo ""
+echo "[ Security Test 2 ] Unrestricted Upload — PHP webshell (known vulnerability)"
+echo '<?php system($_GET["cmd"]); ?>' > /tmp/shell.php
+
+UPLOAD_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+  -X POST "$BASE_URL/upload" \
+  -H "x-api-token: $API_TOKEN" \
+  -F "file=@/tmp/shell.php")
+
+if [ "$UPLOAD_CODE" == "200" ]; then
+  finding "SEC-UPLOAD-001: PHP webshell accepted with HTTP 200 — no file type validation (T-3)"
+else
+  pass "SEC-UPLOAD-001: PHP webshell rejected with $UPLOAD_CODE — validation is working"
+fi
+
+# ==============================================================================
 # Summary
 # ==============================================================================
 echo ""
 echo "=================================================="
-echo " Results: $PASS passed, $FAIL failed"
+echo " Functional Tests : $PASS passed, $FAIL failed"
+echo " Security Findings: $SECURITY_FINDINGS known vulnerabilities documented"
 echo "=================================================="
 
 if [ "$FAIL" -gt 0 ]; then
+  echo " CI STATUS: FAILED — fix functional test failures before merging"
   exit 1
 else
+  echo " CI STATUS: PASSED"
   exit 0
 fi

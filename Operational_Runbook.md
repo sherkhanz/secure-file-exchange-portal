@@ -9,12 +9,6 @@
 
 This runbook defines how an on-call engineer responds when automated security or functional tests fail. Each section follows the structure: **Investigate → Mitigate → Recover**.
 
-Run tests first:
-```bash
-chmod +x automate_tests.sh
-./automate_tests.sh
-```
-
 ---
 
 ## Incident 1 - SEC-IDOR-001 FAIL: Unauthenticated Download Returns 200

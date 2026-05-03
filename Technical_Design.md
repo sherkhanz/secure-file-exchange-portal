@@ -1,4 +1,4 @@
-# Technical Design Document: Secure File Exchange Portal
+# Technical Design: Secure File Exchange Portal
 
 **Status:** Initial Architecture  
 **Version:** 1.0    

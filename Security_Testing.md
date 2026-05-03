@@ -1,4 +1,4 @@
-# Security Testing Document: Secure File Exchange Portal
+# Security Testing: Secure File Exchange Portal
 
 **Version:** 1.0  
 **Framework:** STRIDE / OWASP / NIST

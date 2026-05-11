@@ -156,6 +156,55 @@ else
 fi
 
 # ==============================================================================
+# OPERATIONAL RISK TEST 1: Storage Threshold Check (OR-1)
+# ==============================================================================
+echo ""
+echo "[ OR-1 Test ] Storage threshold — oversized file rejected with 413"
+dd if=/dev/urandom of=/tmp/oversized_test.bin bs=1M count=21 2>/dev/null
+
+OVERSIZE_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+  -X POST "$BASE_URL/upload" \
+  -H "x-api-token: $API_TOKEN" \
+  -F "file=@/tmp/oversized_test.bin")
+
+if [ "$OVERSIZE_CODE" == "413" ]; then
+  pass "OR-1: 21 MB file rejected with 413 — storage guard is active"
+else
+  fail "OR-1: 21 MB file returned $OVERSIZE_CODE (expected 413) — storage guard is missing"
+fi
+rm -f /tmp/oversized_test.bin
+
+# ==============================================================================
+# OPERATIONAL RISK TEST 2: Concurrent Upload Load Test (OR-2 / OR-3)
+# ==============================================================================
+echo ""
+echo "[ OR-2/OR-3 Test ] Concurrent uploads — 5 parallel requests"
+echo "concurrent load test content" > /tmp/concurrent_test.txt
+
+CONCURRENT_RESULTS=()
+for i in {1..5}; do
+  CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+    -X POST "$BASE_URL/upload" \
+    -H "x-api-token: $API_TOKEN" \
+    -F "file=@/tmp/concurrent_test.txt") &
+  CONCURRENT_RESULTS+=($!)
+done
+
+CONCURRENT_FAIL=0
+for pid in "${CONCURRENT_RESULTS[@]}"; do
+  wait "$pid"
+done
+
+HEALTH_AFTER=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/health")
+if [ "$HEALTH_AFTER" == "200" ]; then
+  pass "OR-2/OR-3: API healthy after 5 concurrent uploads — no lock or OOM crash"
+else
+  fail "OR-2/OR-3: API returned $HEALTH_AFTER after concurrent load — possible lock or crash"
+  ((FAIL++))
+fi
+rm -f /tmp/concurrent_test.txt
+
+# ==============================================================================
 # Summary
 # ==============================================================================
 echo ""

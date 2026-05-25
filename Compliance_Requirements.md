@@ -1,7 +1,7 @@
 # Compliance Requirements: Secure File Exchange Portal
 
-**Version:** 1.0
-**Linked Documents:** Threat Model, Operational Risks
+**Version:** 1.0  
+**Linked Documents:** Threat Model, Operational Risks  
 
 ---
 

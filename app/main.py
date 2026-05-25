@@ -10,21 +10,16 @@ from fastapi import FastAPI, UploadFile, File, Header, HTTPException, Depends
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-# ---------------------------------------------------------------------------
-# Config
-# ---------------------------------------------------------------------------
 DB_PATH      = os.environ.get("DB_PATH",                   "/data/db/portal.db")
 STORAGE_PATH = os.environ.get("STORAGE_PATH",              "/data/files")
 API_TOKEN    = os.environ.get("API_TOKEN",                  "supersecret-mock-token")
 EXPIRY_MINS  = int(os.environ.get("DEFAULT_EXPIRY_MINUTES", "60"))
 MAX_MB       = int(os.environ.get("MAX_UPLOAD_MB",          "20"))
+ALLOWED_EXTENSIONS = {".txt", ".pdf", ".png", ".jpg", ".jpeg", ".docx", ".xlsx", ".csv"}
 
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 os.makedirs(STORAGE_PATH, exist_ok=True)
 
-# ---------------------------------------------------------------------------
-# Structured stdout audit log
-# ---------------------------------------------------------------------------
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  AUDIT  %(message)s",
@@ -34,11 +29,9 @@ log = logging.getLogger("portal")
 
 
 def audit(event: str, **kwargs):
-    """Emit audit event to stdout AND persist to audit_log table."""
     parts = " | ".join(f"{k}={v}" for k, v in kwargs.items())
     log.info(f"event={event} | {parts}")
 
-    # Persist to SQLite so Grafana can query it
     detail = str(kwargs)
     try:
         with get_db() as conn:
@@ -50,9 +43,6 @@ def audit(event: str, **kwargs):
         log.error(f"Failed to persist audit event: {e}")
 
 
-# ---------------------------------------------------------------------------
-# SQLite helpers
-# ---------------------------------------------------------------------------
 def get_db() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -91,9 +81,27 @@ def init_db():
 
 init_db()
 
-# ---------------------------------------------------------------------------
-# FastAPI app
-# ---------------------------------------------------------------------------
+
+def cleanup_expired_files():
+    with get_db() as conn:
+        expired_files = conn.execute("""
+            SELECT id, stored_name FROM files
+            WHERE id NOT IN (
+                SELECT file_id FROM links
+                WHERE revoked = 0
+                AND expires_at > datetime('now')
+            )
+        """).fetchall()
+
+        for file_row in expired_files:
+            file_path = os.path.join(STORAGE_PATH, file_row["stored_name"])
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                log.info(f"event=file_deleted | stored_name={file_row['stored_name']}")
+            conn.execute("DELETE FROM links WHERE file_id = ?", (file_row["id"],))
+            conn.execute("DELETE FROM files WHERE id = ?", (file_row["id"],))
+
+
 app = FastAPI(
     title="Secure File Exchange Portal",
     version="0.1.0",
@@ -101,31 +109,21 @@ app = FastAPI(
 )
 
 
-# ---------------------------------------------------------------------------
-# Auth dependency
-# ---------------------------------------------------------------------------
 def require_auth(x_api_token: Optional[str] = Header(default=None)):
     if x_api_token != API_TOKEN:
-        # Persist unauthorized attempt to audit_log
         audit("unauthorized_request", reason="invalid_or_missing_token")
         raise HTTPException(status_code=401, detail="Missing or invalid API token.")
     return x_api_token
 
 
-# ---------------------------------------------------------------------------
-# Request schemas
-# ---------------------------------------------------------------------------
 class LinkRequest(BaseModel):
     file_id: str
     expires_in_minutes: Optional[int] = EXPIRY_MINS
 
 
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
-
 @app.get("/health")
 def health():
+    cleanup_expired_files()
     return {"status": "ok", "version": "0.1.0"}
 
 
@@ -135,6 +133,13 @@ async def upload_file(
     _auth: str = Depends(require_auth),
 ):
     contents = await file.read()
+
+    file_ext = os.path.splitext(file.filename)[1].lower()
+    if file_ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"File type '{file_ext}' is not allowed. Permitted types: {sorted(ALLOWED_EXTENSIONS)}"
+        )
 
     if len(contents) > MAX_MB * 1024 * 1024:
         raise HTTPException(

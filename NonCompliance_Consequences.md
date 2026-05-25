@@ -1,7 +1,7 @@
 # Non-Compliance Consequences: Secure File Exchange Portal
 
-**Version:** 1.0
-**Linked Documents:** Compliance Requirements, Threat Model
+**Version:** 1.0  
+**Linked Documents:** Compliance Requirements, Threat Model  
 
 ---
 

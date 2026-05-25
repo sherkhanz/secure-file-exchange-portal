@@ -1,7 +1,7 @@
 # Compliance Audit: Mock Product Implementation
 
-**Version:** 1.0
-**Linked Documents:** Compliance Requirements, Threat Model
+**Version:** 1.0  
+**Linked Documents:** Compliance Requirements, Threat Model  
 
 ---
 

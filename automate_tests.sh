@@ -160,19 +160,19 @@ fi
 # ==============================================================================
 echo ""
 echo "[ OR-1 Test ] Storage threshold — oversized file rejected with 413"
-dd if=/dev/urandom of=/tmp/oversized_test.bin bs=1M count=21 2>/dev/null
+dd if=/dev/urandom of=/tmp/oversized_test.txt bs=1M count=21 2>/dev/null
 
 OVERSIZE_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
   -X POST "$BASE_URL/upload" \
   -H "x-api-token: $API_TOKEN" \
-  -F "file=@/tmp/oversized_test.bin")
+  -F "file=@/tmp/oversized_test.txt")
 
 if [ "$OVERSIZE_CODE" == "413" ]; then
   pass "OR-1: 21 MB file rejected with 413 — storage guard is active"
 else
   fail "OR-1: 21 MB file returned $OVERSIZE_CODE (expected 413) — storage guard is missing"
 fi
-rm -f /tmp/oversized_test.bin
+rm -f /tmp/oversized_test.txt
 
 # ==============================================================================
 # OPERATIONAL RISK TEST 2: Concurrent Upload Load Test (OR-2 / OR-3)

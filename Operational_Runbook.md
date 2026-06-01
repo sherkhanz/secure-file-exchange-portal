@@ -36,7 +36,12 @@ sudo cat $(docker inspect --format='{{.LogPath}}' sfep_api) | grep -E "failed_do
 
 **Forensic Check - identify compromised tokens and successful downloads:**
 ```bash
-sudo cat $(docker inspect --format='{{.LogPath}}' sfep_api) | grep -E "successful_download|200"
+docker exec sfep_api python3 -c "
+import sqlite3
+conn = sqlite3.connect('/data/db/portal.db')
+rows = conn.execute(\"SELECT event, detail, ts FROM audit_log WHERE event='successful_download' ORDER BY ts DESC LIMIT 10\").fetchall()
+for r in rows: print(r)
+"
 ```
 
 **Confirm file exposure for a specific token:**

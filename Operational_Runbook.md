@@ -71,9 +71,9 @@ curl -s http://localhost:8000/blocked \
   -H "x-api-token: supersecret-mock-token" | python3 -m json.tool
 ```
 
-**Step 4 - If attack is ongoing, stop the container:**
+**Step 4 - If service is down, restart the container:**
 ```bash
-docker compose stop api
+docker restart sfep_api
 ```
 
 ---

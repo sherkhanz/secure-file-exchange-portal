@@ -6,8 +6,9 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import FastAPI, UploadFile, File, Header, HTTPException, Depends
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, UploadFile, File, Header, HTTPException, Depends, Request
+from fastapi.responses import FileResponse, JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 
 DB_PATH      = os.environ.get("DB_PATH",                   "/data/db/portal.db")
@@ -16,6 +17,8 @@ API_TOKEN    = os.environ.get("API_TOKEN",                  "supersecret-mock-to
 EXPIRY_MINS  = int(os.environ.get("DEFAULT_EXPIRY_MINUTES", "60"))
 MAX_MB       = int(os.environ.get("MAX_UPLOAD_MB",          "20"))
 ALLOWED_EXTENSIONS = {".txt", ".pdf", ".png", ".jpg", ".jpeg", ".docx", ".xlsx", ".csv"}
+
+BLOCKED_IPS: set = set()
 
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 os.makedirs(STORAGE_PATH, exist_ok=True)
@@ -109,6 +112,21 @@ app = FastAPI(
 )
 
 
+class IPBlacklistMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        client_ip = request.client.host
+        if client_ip in BLOCKED_IPS:
+            audit("blocked_request", ip=client_ip, path=request.url.path)
+            return JSONResponse(
+                status_code=403,
+                content={"detail": f"Access denied. IP {client_ip} is blocked."}
+            )
+        return await call_next(request)
+
+
+app.add_middleware(IPBlacklistMiddleware)
+
+
 def require_auth(x_api_token: Optional[str] = Header(default=None)):
     if x_api_token != API_TOKEN:
         audit("unauthorized_request", reason="invalid_or_missing_token")
@@ -127,6 +145,25 @@ def health():
     return {"status": "ok", "version": "0.1.0"}
 
 
+@app.post("/block/{ip}")
+def block_ip(ip: str, _auth: str = Depends(require_auth)):
+    BLOCKED_IPS.add(ip)
+    audit("ip_blocked", ip=ip)
+    return {"detail": f"IP {ip} has been blocked.", "blocked_ips": list(BLOCKED_IPS)}
+
+
+@app.post("/unblock/{ip}")
+def unblock_ip(ip: str, _auth: str = Depends(require_auth)):
+    BLOCKED_IPS.discard(ip)
+    audit("ip_unblocked", ip=ip)
+    return {"detail": f"IP {ip} has been unblocked.", "blocked_ips": list(BLOCKED_IPS)}
+
+
+@app.get("/blocked")
+def list_blocked(_auth: str = Depends(require_auth)):
+    return {"blocked_ips": list(BLOCKED_IPS)}
+
+
 @app.post("/upload")
 async def upload_file(
     file: UploadFile = File(...),
@@ -134,16 +171,16 @@ async def upload_file(
 ):
     contents = await file.read()
 
+    if len(contents) > MAX_MB * 1024 * 1024:
+        raise HTTPException(
+            status_code=413, detail=f"File exceeds {MAX_MB} MB limit."
+        )
+
     file_ext = os.path.splitext(file.filename)[1].lower()
     if file_ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=422,
             detail=f"File type '{file_ext}' is not allowed. Permitted types: {sorted(ALLOWED_EXTENSIONS)}"
-        )
-
-    if len(contents) > MAX_MB * 1024 * 1024:
-        raise HTTPException(
-            status_code=413, detail=f"File exceeds {MAX_MB} MB limit."
         )
 
     file_id     = str(uuid.uuid4())

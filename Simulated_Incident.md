@@ -9,10 +9,10 @@
 ## 1. Demo Videos
 
 ### Attack Simulation
-<video src="videos/Attack_Simulation.mp4" controls width="800"></video>
+[![Attack Simulation](https://img.youtube.com/vi/VIDEO_ID/0.jpg)](https://www.youtube.com/watch?v=dxSZ-suSpBw)
 
 ### Defensive Response
-<video src="videos/Defensive_Response.mp4" controls width="800"></video>
+[![Defensive Response](https://img.youtube.com/vi/VIDEO_ID/0.jpg)](https://www.youtube.com/watch?v=c7CGrKayAS4)
 
 ---
 

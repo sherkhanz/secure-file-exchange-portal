@@ -90,7 +90,7 @@ sudo cat $(docker inspect --format='{{.LogPath}}' sfep_api) | grep -E "successfu
 
 All response actions were executed per **Operational_Runbook.md - Incident 1**.
 
-### Step 1 - Revoke Compromised Tokens
+### 5.1 Revoke Compromised Tokens
 
 All three compromised tokens were immediately revoked to cut off attacker access:
 
@@ -99,7 +99,7 @@ curl -s -X POST http://localhost:8000/revoke/TOKEN \
   -H "x-api-token: supersecret-mock-token" | python3 -m json.tool
 ```
 
-### Step 2 - Block Attacker IP
+### 5.2 Block Attacker IP
 
 The attacker IP was added to the application-level blacklist using the IP Blacklist feature:
 
@@ -108,7 +108,7 @@ curl -s -X POST http://localhost:8000/block/172.22.0.1 \
   -H "x-api-token: supersecret-mock-token"
 ```
 
-### Step 3 - Confirm Blacklist
+### 5.3 Confirm Blacklist
 
 ```bash
 curl -s http://localhost:8000/blocked \
@@ -126,7 +126,7 @@ curl -s http://localhost:8000/blocked \
 
 ## 6. Recovery and Verification
 
-### Step 1 - Verify Revoked Tokens Return 410
+### 6.1 Verify Revoked Tokens Return 410
 
 ```bash
 curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" \
@@ -135,7 +135,7 @@ curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" \
 
 **Result:** `HTTP Status: 410` - access denied for all three compromised tokens.
 
-### Step 2 - Verify Blocked IP Returns 403
+### 6.2 Verify Blocked IP Returns 403
 
 ```bash
 curl -si http://localhost:8000/download/TOKEN
@@ -143,7 +143,7 @@ curl -si http://localhost:8000/download/TOKEN
 
 **Result:** `HTTP/1.1 403 Forbidden` - attacker IP blocked at application level.
 
-### Step 3 - Confirm Service Health
+### 6.3 Confirm Service Health
 
 ```bash
 curl -s http://localhost:8000/health

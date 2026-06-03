@@ -1,4 +1,4 @@
-# Simulated Incident Report: IDOR Token Brute-Force Attack
+# Simulated Incident: IDOR Token Brute-Force Attack
 
 **Linked Documents:** Operational Runbook, Threat_Model  
 **Incident Type:** Broken Access Control / IDOR  

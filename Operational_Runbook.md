@@ -84,7 +84,7 @@ docker restart sfep_api
 ```bash
 curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" \
   http://localhost:8000/download/TOKEN
-# Expected: HTTP Status: 410
+# Expected: HTTP Status: 404
 ```
 
 **Step 2 - Confirm service health:**

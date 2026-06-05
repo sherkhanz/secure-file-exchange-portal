@@ -55,7 +55,7 @@ The exposure of `server_credentials.txt` represents the most severe outcome - le
 
 The Grafana **Failed Downloads** alert rule fired after detecting more than 10 failed download attempts within a 5-minute window. The alert was delivered in real time to the Discord channel `🚨-security-alerts`:
 
-![Discord Alert](screenshots/discord_alert.png)
+![Discord Alert](../screenshots/discord_alert.png)
 
 ### 4.2 OE Dashboard Analysis
 

@@ -61,6 +61,9 @@ jobs:
       - name: Build Docker images
         run: docker compose build --no-cache
 
+      - name: Create .env file for Docker
+        run: echo "API_TOKEN=supersecret-mock-token" > .env
+
       - name: Start containers
         run: docker compose up -d
 

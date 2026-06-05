@@ -1,7 +1,5 @@
 # OE Dashboard: Secure File Exchange Portal
 
----
-
 ## 1. Overview
 
 This document describes the Operational Excellence Dashboard for the Secure File Exchange Portal. The dashboard provides real-time visibility into system health, security events, link lifecycle, storage capacity, and operational risks.

@@ -71,14 +71,6 @@ This document describes the Operational Excellence Dashboard for the Secure File
 | Revoked / Expired Token Access | Stat | T-1 (IDOR) | `SELECT COUNT(*) as suspicious FROM audit_log WHERE event IN ('revoked_link_access','expired_link_access')` | Yellow: 1+ <br> Red: 3+ |
 | Suspicious Uploads | Table | T&#8209;3&nbsp;(Tampering) | `SELECT filename, size_bytes, ts as "Uploaded At" FROM audit_log WHERE event='upload_created' AND (detail LIKE '%.php%' OR detail LIKE '%.sh%' OR detail LIKE '%.exe%') ORDER BY ts DESC` | Any row = immediate review |
 
-**Threat mapping:**
-
-| <nobr>Threat Model ID</nobr> | Threat | Dashboard Signal |
-|----------------|--------|-----------------|
-| T-1 | Unauthenticated file download / IDOR | Spike in Failed Downloads + Revoked Token Access |
-| T-2 | <nobr>Hardcoded static API token brute-force</nobr> | Spike in Unauthorized Requests (401) |
-| T-3 | Unrestricted malicious file upload | Any row in Suspicious Uploads table |
-
 ---
 
 ### 3.3 Link Lifecycle
@@ -120,15 +112,6 @@ This document describes the Operational Excellence Dashboard for the Secure File
 **DB Write Contention panel notes:**
 - Empty table - normal state. Rows appear only when write intensity exceeds threshold.
 - A value of 15+ in a single minute indicates high SQLite lock contention risk.
-
-**Operational risk coverage:**
-
-| Risk | Panel | Detection Method |
-|------|-------|-----------------|
-| OR-1 Storage exhaustion | Storage Used (Gauge) <br> Unreferenced Files (Stat) | Storage Used hits orange/red threshold |
-| OR-2 SQLite contention | DB Write Contention (Table) | Rows appear with high write_intensity |
-| OR-3 OOM crash | Large File Upload (Stat) <br> API Status (Table) | Large upload count spike, API Status goes non-OK |
-| OR-4 API latency | DB Write Contention (Table) <br> Unreferenced Files (Stat) | High contention + growing orphaned files = degraded query performance |
 
 ---
 

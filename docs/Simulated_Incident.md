@@ -1,11 +1,5 @@
 # Simulated Incident: IDOR Token Brute-Force Attack
 
-**Linked Documents:** Operational Runbook, Threat_Model  
-**Incident Type:** Broken Access Control / IDOR  
-**Severity:** Critical
-
----
-
 ## 1. Demo Videos
 
 ### Attack Simulation
@@ -157,16 +151,10 @@ curl -s http://localhost:8000/health
 
 | Root Cause | Status |
 |------------|--------|
-| `GET /download/{token}` requires no authentication - any party with a valid token can access files without credentials | **Deferred** - documented as T-1 in Threat_Model.md |
+| `GET /download/{token}` required no authentication | **Remediated** - `Depends(require_auth)` added post-incident |
 
-**Planned fix:** Add `Depends(require_auth)` to the download endpoint:
-
-```python
-@app.get("/download/{token}")
-def download_file(token: str, _auth: str = Depends(require_auth)):
-```
-
-**Immediate mitigations applied:**
+**Post-incident remediation applied:**
 - All compromised tokens revoked
 - Attacker IP blocked via application-level blacklist
-- Grafana alerting confirmed operational for future detection
+- `Depends(require_auth)` added to `/download/{token}` endpoint
+- `slowapi` rate limiting implemented at 5 req/min per IP

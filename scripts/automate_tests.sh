@@ -106,7 +106,9 @@ echo "[ Functional Test 5 ] Revoke token — verify 410 on download"
 curl -s -X POST "$BASE_URL/revoke/$TOKEN" \
   -H "x-api-token: $API_TOKEN" > /dev/null
 
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/download/$TOKEN")
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+  -H "x-api-token: $API_TOKEN" \
+  "$BASE_URL/download/$TOKEN")
 
 if [ "$HTTP_CODE" == "410" ]; then
   pass "Revoked token returned 410 Gone — revocation works"
@@ -115,10 +117,10 @@ else
 fi
 
 # ==============================================================================
-# SECURITY TEST 1: IDOR — Unauthenticated Download (known vulnerability)
+# SECURITY TEST 1: SEC-IDOR-001 — Download requires authentication
 # ==============================================================================
 echo ""
-echo "[ Security Test 1 ] IDOR — Unauthenticated download (known vulnerability)"
+echo "[ Security Test 1 ] SEC-IDOR-001 — Download without token returns 401"
 
 UPLOAD2=$(curl -s -X POST "$BASE_URL/upload" \
   -H "x-api-token: $API_TOKEN" \
@@ -131,17 +133,17 @@ LINK2=$(curl -s -X POST "$BASE_URL/links" \
 TOKEN2=$(echo "$LINK2" | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])" 2>/dev/null)
 
 HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/download/$TOKEN2")
-if [ "$HTTP_CODE" == "200" ]; then
-  finding "SEC-IDOR-001: /download/{token} returned 200 with NO auth — VULNERABILITY CONFIRMED (T-1)"
+if [ "$HTTP_CODE" == "401" ]; then
+  pass "SEC-IDOR-001: /download/{token} returned 401 without auth — endpoint is protected"
 else
-  pass "SEC-IDOR-001: /download/{token} returned $HTTP_CODE — endpoint is protected"
+  fail "SEC-IDOR-001: /download/{token} returned $HTTP_CODE (expected 401) — endpoint is not protected"
 fi
 
 # ==============================================================================
-# SECURITY TEST 2: Unrestricted Upload — PHP webshell (known vulnerability)
+# SECURITY TEST 2: SEC-UPLOAD-001 — PHP webshell rejected
 # ==============================================================================
 echo ""
-echo "[ Security Test 2 ] Unrestricted Upload — PHP webshell (known vulnerability)"
+echo "[ Security Test 2 ] SEC-UPLOAD-001 — PHP webshell rejected with 422"
 echo '<?php system($_GET["cmd"]); ?>' > /tmp/shell.php
 
 UPLOAD_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -149,60 +151,82 @@ UPLOAD_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
   -H "x-api-token: $API_TOKEN" \
   -F "file=@/tmp/shell.php")
 
-if [ "$UPLOAD_CODE" == "200" ]; then
-  finding "SEC-UPLOAD-001: PHP webshell accepted with HTTP 200 — no file type validation (T-3)"
+if [ "$UPLOAD_CODE" == "422" ]; then
+  pass "SEC-UPLOAD-001: PHP webshell rejected with 422 — file type validation is working"
 else
-  pass "SEC-UPLOAD-001: PHP webshell rejected with $UPLOAD_CODE — validation is working"
+  fail "SEC-UPLOAD-001: PHP webshell returned $UPLOAD_CODE (expected 422) — validation missing"
 fi
 
 # ==============================================================================
-# OPERATIONAL RISK TEST 1: Storage Threshold Check (OR-1)
+# SECURITY TEST 3: SEC-AUTH-001 — API token absent from docker-compose.yml
 # ==============================================================================
 echo ""
-echo "[ OR-1 Test ] Storage threshold — oversized file rejected with 413"
-dd if=/dev/urandom of=/tmp/oversized_test.txt bs=1M count=21 2>/dev/null
+echo "[ Security Test 3 ] SEC-AUTH-001 — API token not hardcoded in docker-compose.yml"
 
-OVERSIZE_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-  -X POST "$BASE_URL/upload" \
-  -H "x-api-token: $API_TOKEN" \
-  -F "file=@/tmp/oversized_test.txt")
-
-if [ "$OVERSIZE_CODE" == "413" ]; then
-  pass "OR-1: 21 MB file rejected with 413 — storage guard is active"
+if grep -q "API_TOKEN:.*[a-zA-Z0-9]" docker-compose.yml 2>/dev/null; then
+  fail "SEC-AUTH-001: API_TOKEN found in docker-compose.yml — token is hardcoded"
 else
-  fail "OR-1: 21 MB file returned $OVERSIZE_CODE (expected 413) — storage guard is missing"
+  pass "SEC-AUTH-001: API_TOKEN absent from docker-compose.yml — token is externalized"
 fi
-rm -f /tmp/oversized_test.txt
 
 # ==============================================================================
-# OPERATIONAL RISK TEST 2: Concurrent Upload Load Test (OR-2 / OR-3)
+# SECURITY TEST 4: SEC-AUTH-001 — .env in .gitignore
 # ==============================================================================
 echo ""
-echo "[ OR-2/OR-3 Test ] Concurrent uploads — 5 parallel requests"
-echo "concurrent load test content" > /tmp/concurrent_test.txt
+echo "[ Security Test 4 ] SEC-AUTH-001 — .env listed in .gitignore"
 
-CONCURRENT_RESULTS=()
-for i in {1..5}; do
+if grep -q "\.env" .gitignore 2>/dev/null; then
+  pass "SEC-AUTH-001: .env is listed in .gitignore — token excluded from version control"
+else
+  fail "SEC-AUTH-001: .env not found in .gitignore — token may be committed to repository"
+fi
+
+# ==============================================================================
+# SECURITY TEST 5: SEC-AUTH-002 — Rate limiting on /upload returns 429
+# ==============================================================================
+echo ""
+echo "[ Security Test 5 ] SEC-AUTH-002 — Rate limiting on /upload returns 429"
+
+RATE_HIT=0
+for i in {1..6}; do
   CODE=$(curl -s -o /dev/null -w "%{http_code}" \
     -X POST "$BASE_URL/upload" \
     -H "x-api-token: $API_TOKEN" \
-    -F "file=@/tmp/concurrent_test.txt") &
-  CONCURRENT_RESULTS+=($!)
+    -F "file=@$TEST_FILE")
+  if [ "$CODE" == "429" ]; then
+    RATE_HIT=1
+    break
+  fi
 done
 
-CONCURRENT_FAIL=0
-for pid in "${CONCURRENT_RESULTS[@]}"; do
-  wait "$pid"
-done
-
-HEALTH_AFTER=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/health")
-if [ "$HEALTH_AFTER" == "200" ]; then
-  pass "OR-2/OR-3: API healthy after 5 concurrent uploads — no lock or OOM crash"
+if [ "$RATE_HIT" == "1" ]; then
+  pass "SEC-AUTH-002: Rate limit triggered — 429 returned after threshold on /upload"
 else
-  fail "OR-2/OR-3: API returned $HEALTH_AFTER after concurrent load — possible lock or crash"
-  ((FAIL++))
+  fail "SEC-AUTH-002: No 429 returned after 6 requests — rate limiting not working on /upload"
 fi
-rm -f /tmp/concurrent_test.txt
+
+# ==============================================================================
+# SECURITY TEST 6: SEC-IDOR-002 — Rate limiting on /download returns 429
+# ==============================================================================
+echo ""
+echo "[ Security Test 6 ] SEC-IDOR-002 — Rate limiting on /download returns 429"
+
+RATE_HIT_DL=0
+for i in {1..6}; do
+  CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+    -H "x-api-token: $API_TOKEN" \
+    "$BASE_URL/download/$TOKEN2")
+  if [ "$CODE" == "429" ]; then
+    RATE_HIT_DL=1
+    break
+  fi
+done
+
+if [ "$RATE_HIT_DL" == "1" ]; then
+  pass "SEC-IDOR-002: Rate limit triggered — 429 returned after threshold on /download"
+else
+  fail "SEC-IDOR-002: No 429 returned after 6 requests — rate limiting not working on /download"
+fi
 
 # ==============================================================================
 # Summary

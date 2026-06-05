@@ -1,9 +1,4 @@
-# Operational Runbook: Secure File Exchange Portal
-
-**Version:** 2.0  
-**Linked Documents:** Threat Model, Security Testing
-
----
+# Incident Runbook: Secure File Exchange Portal
 
 ## Overview
 
@@ -98,17 +93,6 @@ curl -s http://localhost:8000/health
 docker compose start api
 ```
 
-**Step 4 - Long-term fix: add authentication to download endpoint in `app/main.py`:**
-```python
-# BEFORE (vulnerable)
-@app.get("/download/{token}")
-def download_file(token: str):
-
-# AFTER (fixed)
-@app.get("/download/{token}")
-def download_file(token: str, _auth: str = Depends(require_auth)):
-```
-
 ---
 
 ## Incident 2: API Token Brute-Force
@@ -200,7 +184,7 @@ git log --all --full-history -- docker-compose.yml | head -5
 
 **Threat Model Reference:** T-3 - Unrestricted File Upload  
 **Severity:** High  
-**Signal:** Any row in Grafana **Suspicious Uploads** table or failed CI/CD security test
+**Signal:** Any row in Grafana Suspicious Uploads table or failed CI/CD security test
 
 ---
 

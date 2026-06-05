@@ -1,9 +1,5 @@
 # OE Dashboard: Secure File Exchange Portal
 
-**Version:** 2.0  
-**Monitoring Tool:** Grafana  
-**Data Source:** SQLite  
-
 ---
 
 ## 1. Overview

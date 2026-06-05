@@ -81,8 +81,8 @@ jobs:
 
       - name: Run integration tests
         run: |
-          chmod +x automate_tests.sh
-          ./automate_tests.sh
+          chmod +x scripts/automate_tests.sh
+          ./scripts/automate_tests.sh
         env:
           BASE_URL: http://localhost:8000
           API_TOKEN: supersecret-mock-token

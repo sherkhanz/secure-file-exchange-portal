@@ -71,5 +71,5 @@ curl http://localhost:8000/health
  
 | Phase | Recording |
 |-------|-----------|
-| Attack Simulation | [Attack Simulation](https://www.youtube.com/watch?v=dxSZ-suSpBw) |
-| Defensive Response | [Defensive Response](https://www.youtube.com/watch?v=c7CGrKayAS4) |
+| Attack Simulation | [Watch on YouTube](https://www.youtube.com/watch?v=dxSZ-suSpBw) |
+| Defensive Response | [Watch on YouTube](https://www.youtube.com/watch?v=c7CGrKayAS4) |

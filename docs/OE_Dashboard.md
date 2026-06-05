@@ -117,4 +117,4 @@ This document describes the Operational Excellence Dashboard for the Secure File
 
 ## 4. Dashboard Screenshot
 
-![OE Dashboard](screenshots/OE_Dashboard.png)
+![OE Dashboard](../screenshots/OE_Dashboard.png)

@@ -6,10 +6,16 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile, File, Header, HTTPException, Depends, Request
 from fastapi.responses import FileResponse, JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
+
+load_dotenv()
 
 DB_PATH      = os.environ.get("DB_PATH",                   "/data/db/portal.db")
 STORAGE_PATH = os.environ.get("STORAGE_PATH",              "/data/files")
@@ -30,6 +36,27 @@ logging.basicConfig(
 )
 log = logging.getLogger("portal")
 
+limiter = Limiter(key_func=get_remote_address)
+
+
+def get_audit_db() -> sqlite3.Connection:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    conn.executescript("""
+        CREATE TRIGGER IF NOT EXISTS protect_audit_log_update
+        BEFORE UPDATE ON audit_log
+        BEGIN
+            SELECT RAISE(ABORT, 'audit_log is append-only: UPDATE not permitted');
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS protect_audit_log_delete
+        BEFORE DELETE ON audit_log
+        BEGIN
+            SELECT RAISE(ABORT, 'audit_log is append-only: DELETE not permitted');
+        END;
+    """)
+    return conn
+
 
 def audit(event: str, **kwargs):
     parts = " | ".join(f"{k}={v}" for k, v in kwargs.items())
@@ -37,7 +64,7 @@ def audit(event: str, **kwargs):
 
     detail = str(kwargs)
     try:
-        with get_db() as conn:
+        with get_audit_db() as conn:
             conn.execute(
                 "INSERT INTO audit_log (event, detail, ts) VALUES (?, ?, ?)",
                 (event, detail, datetime.utcnow().isoformat()),
@@ -111,6 +138,9 @@ app = FastAPI(
     description="POC — temporary file sharing with link lifecycle control.",
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 
 class IPBlacklistMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -165,7 +195,9 @@ def list_blocked(_auth: str = Depends(require_auth)):
 
 
 @app.post("/upload")
+@limiter.limit("5/minute")
 async def upload_file(
+    request: Request,
     file: UploadFile = File(...),
     _auth: str = Depends(require_auth),
 ):
@@ -246,7 +278,12 @@ def create_link(
 
 
 @app.get("/download/{token}")
-def download_file(token: str):
+@limiter.limit("5/minute")
+def download_file(
+    request: Request,
+    token: str,
+    _auth: str = Depends(require_auth),
+):
     with get_db() as conn:
         link = conn.execute(
             "SELECT * FROM links WHERE token = ?", (token,)
